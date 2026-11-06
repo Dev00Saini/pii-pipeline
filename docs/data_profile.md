@@ -5,19 +5,19 @@ no names, addresses or message text from the data go in this file (it gets commi
 
 ## Source
 - Version: May 7, 2015 (CMU CALO Project)
-- Downloaded: YYYY-MM-DD
-- Pinned SHA-256: (copy from data/CHECKSUM.txt)
+- Downloaded: 2026-11-05
+- Pinned SHA-256: b3da1b3fe0369ec3140bb4fbce94702c33b7da810ec15d718b3fadf5cd748ca7
 
 ## Counts
 | Measure | Value |
 |---|---|
-| Message files | |
-| User folders | |
-| All folders | |
-| Size on disk | |
-| Empty files | |
-| Exact duplicate groups / extra copies | |
-| Extra copies by Message-ID | |
+| Message files |517,401 |
+| User folders |150 |
+| All folders |3,499 |
+| Size on disk |2.6 GB (423 MB compressed) |
+| Empty files |0 |
+| Exact duplicate groups / extra copies |0 / 0 |
+| Extra copies by Message-ID |0 (every file has a unique Message-ID) |
 
 ## What the duplicates tell us
 Why do byte-identical duplicates and Message-ID duplicates give different numbers?
