@@ -248,3 +248,16 @@ def test_notes_wrap_after_unrelated_word():
 def test_notes_leading_capitalized_word():
     (m,) = [m for m in detect("Please Ask Vince Kaminski/HOU/ECT") if m.type == "notes_addr"]
     assert m.value == "Vince Kaminski"
+
+
+# Day 9: card-shaped slices of sequential ID lists are not escalated.
+@pytest.mark.parametrize("text", [
+    "ids 3083 3084 3085 3086 3087",
+    "3116 3117 3119 3120",          # gaps allowed (small steps)
+])
+def test_counting_runs_not_card_like(text):
+    assert [t for t in types(text) if t[0] == "card_like"] == []
+
+
+def test_real_card_still_escalated_after_counting_rule():
+    assert ("card_like", "4111 1111 1111 1111") in types("card 4111 1111 1111 1111")

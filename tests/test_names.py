@@ -139,6 +139,13 @@ def test_classify_spacy_person(text, expected):
     ("Thanks,\n", "Frank", "\n", "redact"),                   # sign-off alone on line
     ("Hi ", "Bob", ", see below", "redact"),
     ("", "Jeff", " said yes", "redact"),                        # not an ambiguous word
+    # Day 9: reviewed as real names at sentence start -> redact, not escalate
+    ("", "Frank", " said yes", "redact"),
+    ("Done. ", "Bob", " will call you.", "redact"),
+    ("", "Sue", " will be distributing it.", "redact"),
+    # Day 9: still escalated (false positives in review)
+    ("", "Bill", " is due Friday", "escalate"),
+    ("\n", "Mark", " your calendar", "escalate"),
 ])
 def test_ambiguous_words_judged_by_context(before, word, after, expected):
     assert classify_spacy_person(word, before, after) == expected

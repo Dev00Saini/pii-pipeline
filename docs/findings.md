@@ -62,3 +62,95 @@ Known limitations: X.400-style addresses with underscores instead of spaces
 stranded on another line in two-column forwarded headers. Escalated items
 (SSN-like, card-like, ambiguous single names) are left in place by design until
 reviewed (Day 9).
+## Full-corpus run (Day 8, re-run Day 9 with final code)
+
+All 51 batches were queued with `bin/queue_pending.sh --all` and processed
+unattended by cron (`bin/intake.sh`). Final run finished 2026-11-06 10:18.
+Every batch was redacted with the same code.
+
+| Measure | Result |
+|---|---|
+| Batches run | 51 of 51, 0 failed |
+| Emails processed | 254,721 (unique, after dropping 262,680 copies) |
+| Email addresses redacted | 2,901,943 |
+| Names redacted | 3,365,631 |
+| Phone numbers redacted | 147,368 |
+| Items escalated for human review | 2,928 (4,561 before the Day 9 rule change) |
+| Independent leak-check hits | 1,247 (4.9 per 1,000 emails) |
+| Average time per batch | 1.6 minutes |
+
+Every batch ends in `needs_review` because every batch has at least one
+escalated item, which by design must be looked at before release.
+
+## Failure tests (Day 8)
+
+`bin/failure_tests.sh`, run on the real setup: 6 of 6 passed.
+
+| Test | Expected | Result |
+|---|---|---|
+| 0. Empty queue | no-op, project files untouched | pass |
+| 1. Batch with no manifest | moved to rejected/ (exit 2) | pass |
+| 2. Empty batch | moved to rejected/ (exit 2) | pass |
+| 3. Garbage file inside a batch | needs_review, 1 parse failure | pass |
+| 4. Killed mid-batch, then next run | nothing published; rerun completes | pass |
+| 5. Two runs at the same time | second intake no-op; direct run exit 75 | pass |
+
+Writing these tests found two real bugs. Intake used `ls` on the queue, and
+with an empty queue it listed the project folder instead and moved README.md
+and pytest.ini into rejected/ (fixed with `find`). The test script also read
+the wrong exit code, so no test could fail (fixed, and verified by breaking a
+test on purpose).
+
+## Human review of escalated items (Day 9)
+
+A fixed random sample of 150 escalated items (seed 42, drawn from 47
+batches, weighted toward SSN- and card-shaped numbers) was reviewed by hand in Excel. Each
+item was judged only from its context: Confirmed PII, False positive, or Needs
+escalation.
+
+| | Reviewed | Confirmed PII | False-positive rate |
+|---|---|---|---|
+| All | 150 | 120 | 13% |
+| Names | 109 | | 9% |
+| Numbers (SSN- and card-shaped) | 41 | | 22% |
+
+What the review showed:
+- **Most escalated names are real people.** At the start of a sentence, Bob,
+  Brown, Drew, Frank, Pat, Rob, Rod and Sue were a real person in every
+  reviewed case (3 or more each, 44 items, 0 false positives). Escalating
+  them only cost review time.
+- **Some words really are ambiguous.** Bill (3 of 10 false), Mark (4 of 32),
+  Ed, Don and Max had false positives. Duke is often Duke Energy, a company.
+  These stay escalated.
+- **Number false positives cluster.** 4 of the 9 were slices of lists of
+  sequential IDs ("3083 3084 3085 3086") that pass the card checksum by
+  coincidence.
+
+## Rule change from the review (Day 9)
+
+1. The 8 words above are now redacted at the start of a sentence instead of
+   escalated. The trade-off is deliberate: an occasional ordinary word gets
+   redacted too, and in de-identification hiding too much is the safer error.
+2. A card-shaped match made of 4-digit groups that count upward by 1 to 10 is
+   no longer escalated. Real card numbers are still caught (tested).
+
+Measured on the full re-run:
+
+| | Before | After | Change |
+|---|---|---|---|
+| Escalations (all) | 4,561 | 2,928 | −1,633 (−36%) |
+| Unique review-queue items | 4,551 | 2,919 | −1,632 (−36%) |
+| Name items | 4,475 | 2,848 | −1,627 |
+| Card-shaped items | 39 | 34 | −5 |
+| SSN-shaped items | 37 | 37 | 0 |
+| Names redacted | 3,364,003 | 3,365,631 | +1,628 |
+| Leak-check hits | 1,247 | 1,247 | 0 |
+
+The name items that left the queue reappear almost one-for-one as redacted
+names, and the leak check found nothing new, so the change moved work off the
+human reviewer without letting anything through.
+
+Limitation: the review sample measures how often *escalated* items are real
+PII. It does not measure how much PII the pipeline misses overall (recall);
+that would need a separate hand-labeled sample from batches never used for
+tuning, which this project has not done.

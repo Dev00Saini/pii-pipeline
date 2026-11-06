@@ -94,9 +94,18 @@ def classify_spacy_person(text: str, before: str = "", after: str = "") -> str |
         return None
     if not tokens[0][:1].isupper():
         return None
-    if len(tokens) == 1 and t.strip(".,'").casefold() in AMBIGUOUS:
+    word = t.strip(".,'").casefold()
+    if len(tokens) == 1 and word in AMBIGUOUS and word not in REVIEWED_AS_NAMES:
         return "escalate" if _sentence_initial_with_more_text(before, after) else "redact"
     return "redact"
+
+
+# Day 9 review (150-item sample): at sentence start these words were a real
+# person every time (>= 3 reviewed each, 0 false positives), so they are
+# redacted instead of escalated. Over-redacting an occasional ordinary word
+# is the safe side for de-identification. Bill, Mark, Ed, Don, Duke, etc.
+# had false positives or unclear cases and stay escalated.
+REVIEWED_AS_NAMES = {"bob", "brown", "drew", "frank", "pat", "rob", "rod", "sue"}
 
 
 # Header words spaCy sometimes glues onto a name from the next line, as in

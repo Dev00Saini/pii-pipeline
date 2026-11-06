@@ -133,6 +133,18 @@ def _luhn_ok(digits: str) -> bool:
     return total % 10 == 0
 
 
+def _is_counting_run(text: str) -> bool:
+    """True for "3083 3084 3085 3086": 4-digit groups that count upward.
+
+    Day 9 review: every card-shaped false positive of this kind was a slice of
+    a long list of sequential IDs. Real card numbers don't count up by 1-10.
+    """
+    groups = [int(g) for g in re.split(r"[ -]", text) if g]
+    if len(groups) < 4 or any(len(g) != 4 for g in re.split(r"[ -]", text)):
+        return False
+    return all(0 < b - a <= 10 for a, b in zip(groups, groups[1:]))
+
+
 def detect(text: str) -> list[Match]:
     found: list[Match] = []
 
@@ -179,7 +191,8 @@ def detect(text: str) -> list[Match]:
         digits = re.sub(r"\D", "", m.group())
         groups = tuple(len(g) for g in re.split(r"[ -]", m.group()))
         if (13 <= len(digits) <= 16 and digits[0] in "3456"
-                and groups in CARD_GROUPINGS and _luhn_ok(digits)):
+                and groups in CARD_GROUPINGS and _luhn_ok(digits)
+                and not _is_counting_run(m.group())):
             found.append(Match("card_like", m.group(), m.start(), m.end(), "escalate", digits))
 
     return _resolve_overlaps(found)
