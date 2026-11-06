@@ -6,7 +6,7 @@ smoke test that runs spaCy itself; it's skipped if spaCy isn't installed.
 import pytest
 
 from known_people import names_from_header
-from names import NameDetector, classify_spacy_person
+from names import NameDetector, classify_spacy_person, trim_header_words
 
 
 # --- known_people: extracting names from X- headers --------------------------
@@ -91,6 +91,23 @@ def test_classify_spacy_person(text, expected):
 ])
 def test_ambiguous_words_judged_by_context(before, word, after, expected):
     assert classify_spacy_person(word, before, after) == expected
+
+
+# Round 6: header words glued onto a name from the next line are trimmed.
+@pytest.mark.parametrize("text, expected", [
+    ("John\nSubject: deal", "John"),
+    ("Jennifer\nSent: Monday", "Jennifer"),
+    ("John Arnold\nTo: x", "John Arnold"),
+    ("Sara Shackleton", "Sara Shackleton"),       # nothing to trim
+])
+def test_trim_header_words(text, expected):
+    end = text.index(":") if ":" in text else len(text)   # spaCy's span ends before the colon
+    s, e = trim_header_words(text, 0, end)
+    assert text[s:e] == expected
+
+
+def test_entity_that_is_only_a_header_word_is_dropped():
+    assert trim_header_words("Subject: hi", 0, 7) == (0, 0)
 
 
 # --- spaCy smoke test (runs only where spaCy + model are installed) -------------

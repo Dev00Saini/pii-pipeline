@@ -96,6 +96,24 @@ def classify_spacy_person(text: str, before: str = "", after: str = "") -> str |
     return "redact"
 
 
+# Header words spaCy sometimes glues onto a name from the next line, as in
+# "John\nSubject:" or "Jennifer\nSent:" (round 6, batch_000 review).
+HEADER_WORDS = {"subject", "sent", "to", "from", "cc", "bcc", "date", "re", "fw", "fwd"}
+
+
+def trim_header_words(text: str, start: int, end: int) -> tuple[int, int]:
+    """Shrink [start, end) so it doesn't end with header words like 'Subject'."""
+    while True:
+        span = text[start:end]
+        m = re.search(r"(\s+)(\S+)\s*$", span)
+        if not m or m.group(2).strip(":").casefold() not in HEADER_WORDS:
+            break
+        end = start + m.start(1)
+    if text[start:end].strip(":").casefold() in HEADER_WORDS:
+        return start, start  # the whole entity was a header word
+    return start, end
+
+
 class NameDetector:
     def __init__(self, known: set[str] | None = None, use_spacy: bool = True):
         self.known = {name_key(n) for n in (known or set())}
@@ -145,14 +163,17 @@ class NameDetector:
 
     def _spacy_matches(self, doc) -> list[Match]:
         out = []
+        text = doc.text  # spaCy rebuilds doc.text on every access: read it once (round 6)
         for ent in doc.ents:
             if ent.label_ != "PERSON":
                 continue
-            action = classify_spacy_person(ent.text, doc.text[max(0, ent.start_char - 200):ent.start_char],
-                                           doc.text[ent.end_char:ent.end_char + 200])
+            start, end = trim_header_words(text, ent.start_char, ent.end_char)
+            if end <= start:
+                continue
+            span = text[start:end]
+            action = classify_spacy_person(span, text[max(0, start - 200):start], text[end:end + 200])
             if action:
-                out.append(Match("person", ent.text, ent.start_char, ent.end_char, action,
-                                 " ".join(ent.text.split())))
+                out.append(Match("person", span, start, end, action, " ".join(span.split())))
         return out
 
     def detect(self, text: str, doc=None) -> list[Match]:
