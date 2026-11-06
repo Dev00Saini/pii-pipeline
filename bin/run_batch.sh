@@ -67,6 +67,9 @@ route() {  # route <state> <exit code> <detail>
   [[ -f "$STATUS_CSV" ]] || echo "batch,status,finished,runtime_s,detail" > "$STATUS_CSV"
   echo "$BID,$state,$(date '+%Y-%m-%dT%H:%M:%S'),$(( $(date +%s) - START )),$detail" >> "$STATUS_CSV"
   log "routed to $state ($detail)"
+  # Refresh the CSV the Excel tracker reads. A failed export must not change
+  # the batch's result, so it's only logged.
+  "$PYTHON" "$REPO_DIR/src/export_tracker.py" >> "$LOG_FILE" 2>&1 || log "warning: tracker export failed"
   exit "$code"
 }
 
