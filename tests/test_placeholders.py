@@ -16,6 +16,10 @@ def test_person_variants_share_a_key(a, b):
     assert normalize_key("person", a) == normalize_key("person", b)
 
 
+def test_quoted_email_same_key():
+    assert normalize_key("email", "'Jana.Morse@dynegy.com") == normalize_key("email", "jana.morse@dynegy.com")
+
+
 def test_different_people_differ():
     assert normalize_key("person", "Scott Mills") != normalize_key("person", "Scott Neal")
 

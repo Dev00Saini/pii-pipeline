@@ -34,7 +34,7 @@ def normalize_key(kind: str, value: str) -> str:
         no_initials = [t for t in tokens if len(t) > 1]
         return " ".join(no_initials or tokens)
     if kind == "email":
-        return value.strip().casefold()
+        return value.strip().lstrip(".'").casefold()   # 'a@b.com' == a@b.com
     if kind == "phone":
         digits = re.sub(r"\D", "", value)
         if len(digits) == 11 and digits.startswith("1"):

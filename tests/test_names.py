@@ -70,6 +70,15 @@ def test_known_list_trims_word_absorbed_before_notes_name():
     assert (m.text, m.value) == ("Vince Kaminski/HOU/ECT", "Vince Kaminski")
 
 
+def test_escalation_inside_longer_match_does_not_block_redaction():
+    # Leak-check round 1: "Mark" (ambiguous, escalated) must not stop the
+    # whole Notes address from being redacted.
+    from detect import Match, _resolve_overlaps
+    notes = Match("notes_addr", "Mark Torres/Corp/Enron@ENRON", 0, 28, "redact", "Mark Torres")
+    mark = Match("person", "Mark", 0, 4, "escalate", "Mark")
+    assert _resolve_overlaps([mark, notes]) == [notes]
+
+
 # --- rules for spaCy PERSON entities -------------------------------------------
 @pytest.mark.parametrize("text, expected", [
     ("Sara Shackleton", "redact"),

@@ -13,6 +13,8 @@
 #   email       anything shaped like an email address
 #   phone       US-style phone numbers: (713) 853-1234, 713-853-1234, 713.853.1234
 #   notes_addr  Lotus Notes style: First Last/HOU/ECT, Name/Corp/Enron@Enron
+#               (ALL-CAPS hits without "@", e.g. MM/DD/YY, are reported as
+#               notes_caps for information only: mostly codes, not people)
 #   known_name  any full name from data/known_people.tsv (seen 2+ times)
 #   mailbox     dropped headers that name the mailbox owner (X-Folder, X-Origin,
 #               X-FileName) or a Notes mailbox file name (*.nsf)
@@ -64,8 +66,12 @@ g -rHoP '(?<![\w.+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-
   | to_tsv email >> "$REPORT"
 g -rHoP '(?<![\d-])(?:\(\d{3}\) ?|\d{3}[-. ])\d{3}[-. ]\d{4}(?![\d-])' "$MSG" \
   | to_tsv phone >> "$REPORT"
+# Notes-shaped hits: with "@" or a lowercase letter -> notes_addr (counted).
+# ALL CAPS with no "@" (MM/DD/YY, ENA/EIM/EGM) -> notes_caps: mostly codes,
+# reported for information only and not counted as leaks.
 g -rHoP "[A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]*){0,3}(?:/[A-Za-z]{2,}){1,3}@[A-Za-z]{2,}|[A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]*){0,3}(?:/[A-Z]{2,}){2,3}(?![A-Za-z/])" "$MSG" \
-  | to_tsv notes_addr >> "$REPORT"
+  | to_tsv notes_addr \
+  | awk -F'\t' 'BEGIN { OFS = "\t" } { if ($3 !~ /@/ && $3 !~ /[a-z]/) $1 = "notes_caps"; print }' >> "$REPORT"
 g -rHoE '^X-(Folder|Origin|FileName):.*|[A-Za-z0-9_-]+\.nsf' "$MSG" \
   | to_tsv mailbox >> "$REPORT"
 
@@ -82,23 +88,24 @@ messages=$(find "$MSG" -type f | wc -l)
 declare -A n
 total=0
 : > "$SAMPLES"
-for c in email phone notes_addr known_name mailbox; do
+for c in email phone notes_addr known_name mailbox notes_caps; do
   n[$c]=$(awk -F'\t' -v c="$c" 'NR > 1 && $1 == c' "$REPORT" | wc -l)
-  total=$(( total + n[$c] ))
+  [[ "$c" == notes_caps ]] || total=$(( total + n[$c] ))   # notes_caps: info only
   if (( n[$c] > 0 )); then
     echo "== $c (${n[$c]} hits; first 20)" >> "$SAMPLES"
     awk -F'\t' -v c="$c" 'NR > 1 && $1 == c { print $2 "\t" $3 }' "$REPORT" | head -20 >> "$SAMPLES"
   fi
 done
-files_with=$(awk -F'\t' 'NR > 1 { print $2 }' "$REPORT" | sort -u | wc -l)
+files_with=$(awk -F'\t' 'NR > 1 && $1 != "notes_caps" { print $2 }' "$REPORT" | sort -u | wc -l)
 per_k=$(awk -v t="$total" -v m="$messages" 'BEGIN { printf "%.1f", (m ? 1000 * t / m : 0) }')
 
-printf '{"batch": "%s", "messages": %d, "files_with_hits": %d, "total": %d, "per_1000_messages": %s, "email": %d, "phone": %d, "notes_addr": %d, "known_name": %d, "mailbox": %d}\n' \
+printf '{"batch": "%s", "messages": %d, "files_with_hits": %d, "total": %d, "per_1000_messages": %s, "email": %d, "phone": %d, "notes_addr": %d, "known_name": %d, "mailbox": %d, "notes_caps_info": %d}\n' \
   "$BID" "$messages" "$files_with" "$total" "$per_k" \
-  "${n[email]}" "${n[phone]}" "${n[notes_addr]}" "${n[known_name]}" "${n[mailbox]}" > "$SUMMARY"
+  "${n[email]}" "${n[phone]}" "${n[notes_addr]}" "${n[known_name]}" "${n[mailbox]}" "${n[notes_caps]}" > "$SUMMARY"
 
 echo "leak check $BID: messages=$messages hits=$total (${per_k}/1k) files_with_hits=$files_with" \
-     "email=${n[email]} phone=${n[phone]} notes_addr=${n[notes_addr]} known_name=${n[known_name]} mailbox=${n[mailbox]}"
+     "email=${n[email]} phone=${n[phone]} notes_addr=${n[notes_addr]} known_name=${n[known_name]} mailbox=${n[mailbox]}" \
+     "(info: notes_caps=${n[notes_caps]})"
 
 (( total == 0 )) && exit 0
 exit 3

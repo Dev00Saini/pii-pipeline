@@ -42,9 +42,12 @@ class Match:
 # --- Email ---------------------------------------------------------------
 # Local part allows . _ % + ' - ; domain must end in a 2+ letter TLD.
 # The domain can't end in a dot, so "a@b.com." at a sentence end stops at .com
+# Leak-check round 1: the local part may START with quotes or dots, as in
+# Outlook's 'jana.morse@dynegy.com' and corpus oddities like .ward@enron.com.
+# (The old pattern refused to start after ' or ., so those leaked entirely.)
 EMAIL_RE = re.compile(
-    r"(?<![\w.+'-])"
-    r"[A-Za-z0-9][A-Za-z0-9._%+'-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
+    r"(?<![\w.+-])"
+    r"[.']*[A-Za-z0-9][A-Za-z0-9._%+'-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
     r"(?![\w-])"
 )
 
@@ -131,9 +134,11 @@ def detect(text: str) -> list[Match]:
         #  - a real name has lowercase letters ("MM" doesn't)
         #  - without "@DOMAIN", org parts must be ALL CAPS (/HOU/ECT); mixed-case
         #    parts (/Corp/Enron) only occur in real addresses with "@Enron"
-        if not re.search(r"[a-z]", name):
-            continue
         orgs = m.group()[len(m.group("name")):]
+        # Leak-check round 1: an ALL-CAPS name is fine when "@DOMAIN" follows
+        # ("JEFF SHIVELY/ENRON@Gateway"); without "@" it's usually a code.
+        if not re.search(r"[a-z]", name) and "@" not in orgs:
+            continue
         if "@" not in orgs and not all(seg.isupper() for seg in orgs.strip("/").split("/")):
             continue
         found.append(Match("notes_addr", m.group(), m.start(), m.end(), "redact", name))
@@ -168,8 +173,13 @@ def detect(text: str) -> list[Match]:
 
 
 def _resolve_overlaps(matches: list[Match]) -> list[Match]:
-    """Where matches overlap, keep escalations first, then the longest match."""
-    ranked = sorted(matches, key=lambda m: (m.action != "escalate", -(m.end - m.start), m.start))
+    """Where matches overlap, keep the LONGEST; escalations win only ties.
+
+    Leak-check round 1: escalations used to win outright, so an ambiguous word
+    inside a longer address ("Mark" in "Mark Torres/Corp/Enron@ENRON") was left
+    in place for review and the whole address went unredacted.
+    """
+    ranked = sorted(matches, key=lambda m: (-(m.end - m.start), m.action != "escalate", m.start))
     kept: list[Match] = []
     for m in ranked:
         if all(m.end <= k.start or m.start >= k.end for k in kept):

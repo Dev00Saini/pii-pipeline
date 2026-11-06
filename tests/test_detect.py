@@ -24,6 +24,20 @@ def test_email_found(text, expected):
     assert ("email", expected) in types(text)
 
 
+# Leak-check round 1 (found by bin/leak_check.sh on batches 000-002)
+@pytest.mark.parametrize("text, expected", [
+    ("To: 'jana.morse@dynegy.com'", "'jana.morse@dynegy.com"),
+    ("cc <.ward@enron.com>", ".ward@enron.com"),
+])
+def test_email_with_leading_quote_or_dot(text, expected):
+    assert ("email", expected) in types(text)
+
+
+def test_all_caps_notes_name_with_at_domain():
+    ms = [m for m in detect("cc: JEFF SHIVELY/ENRON@Gateway") if m.type == "notes_addr"]
+    assert len(ms) == 1 and ms[0].value == "JEFF SHIVELY"
+
+
 def test_email_value_is_lowercased_for_consistent_placeholders():
     (m,) = detect("Mike.Roberts@ENRON.COM")
     assert m.value == "mike.roberts@enron.com"
