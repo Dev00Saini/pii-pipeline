@@ -26,6 +26,7 @@ Exit codes: 0 ok, 2 usage / missing manifest, 1 unexpected error.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 import time
@@ -154,7 +155,12 @@ def run(bid: str, use_spacy: bool = True) -> dict:
 
     docs = (det.nlp.pipe((m.body[:SPACY_MAX_CHARS] for m in msgs), batch_size=64)
             if use_spacy else (None for _ in msgs))
+    # Test hook for bin/failure_tests.sh: slow each message down so a run can
+    # be killed partway through. Never set in normal use.
+    test_delay = float(os.environ.get("PII_TEST_DELAY_S", "0"))
     for rel, msg, doc in zip(rels, msgs, docs):
+        if test_delay:
+            time.sleep(test_delay)
         text = redact_message(msg, det, pmap, counts, escalations, rel, doc)
         dest = tmp_dir / "messages" / rel.removeprefix(MAILDIR_PREFIX)
         dest.parent.mkdir(parents=True, exist_ok=True)

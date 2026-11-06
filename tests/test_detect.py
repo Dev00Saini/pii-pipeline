@@ -69,6 +69,10 @@ def test_phone_round2(text, expected):
     assert ("phone", expected) in types(text)
 
 
+def test_email_followed_by_hyphen():   # round 5, found on fresh batch_003
+    assert ("email", "Mike_Smith@abc.com") in types("Mike_Smith@abc.com- VP Trading")
+
+
 def test_email_wrapped_line_starting_with_plus():
     assert any(t[0] == "email" for t in types("> +2E+20Smith@enron.com]"))
 

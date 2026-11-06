@@ -32,6 +32,22 @@ def mask(s: str, keep_first: bool = False) -> str:
     return out.replace("\n", "⏎").replace("\t", "⇥")
 
 
+def _matches(det, field: str, text: str):
+    if field == "body":
+        doc = det.nlp(text[:SPACY_MAX_CHARS]) if det.use_spacy else None
+        return det.detect_all(text, doc)
+    ms = _no_spacy(det, text)
+    if field.startswith("x-"):
+        ms = _resolve_overlaps(ms + header_name_matches(text))
+    return ms
+
+
+def _missed(det, field: str, text: str, leak: str) -> bool:
+    ms = _matches(det, field, text)
+    return any(not any(m.start <= i and m.end >= i + len(leak) for m in ms)
+               for i in (mm.start() for mm in re.finditer(re.escape(leak), text)))
+
+
 def main() -> None:
     args = [a for a in sys.argv[1:] if a != "--no-spacy"]
     if len(args) != 3:
@@ -51,13 +67,20 @@ def main() -> None:
         msg = parse_file(REPO / "data" / "maildir" / rel)
         fields = {k: v for k, v in msg.headers.items() if k in SCAN_HEADERS}
         fields["body"] = msg.body
-        field = next((k for k, v in fields.items() if leak in v), None)
+        # Round 5 fix: pick the field where the leak is NOT covered, not just the
+        # first field containing the text (it can be covered in X-To but leak in the body).
+        candidates = [k for k, v in fields.items() if leak in v]
+        field = candidates[0] if candidates else None
         shown += 1
         print(f"--- #{shown} {check} in {rel}  leak: {mask(leak, keep_first=True)}")
         if field is None:
             print("    leak text not found verbatim in the original (spans a line break, or")
             print("    was created by redaction, e.g. leftover pieces around a placeholder)")
             continue
+        for cand in candidates:
+            if _missed(det, cand, fields[cand], leak):
+                field = cand
+                break
         text = fields[field]
         if field == "body":
             doc = det.nlp(text[:SPACY_MAX_CHARS]) if det.use_spacy else None

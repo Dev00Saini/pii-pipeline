@@ -50,7 +50,9 @@ class Match:
 EMAIL_RE = re.compile(
     r"(?<![\w.+-])"
     r"[.'+]*[A-Za-z0-9][A-Za-z0-9._%+'-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
-    r"(?![\w-])"
+    # Round 5 (fresh-data check on batch_003): a hyphen may follow the address
+    # ("Mike_Smith@abc.com- VP Trading" in a distribution list).
+    r"(?![A-Za-z0-9_])"
 )
 
 # --- Lotus Notes addresses -------------------------------------------------

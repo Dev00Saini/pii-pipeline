@@ -47,6 +47,10 @@ if [[ ! -f "$MANIFEST" ]]; then
   log "ERROR: no manifest at data/batches/$BID.txt"
   exit 2
 fi
+if [[ ! -s "$MANIFEST" ]]; then
+  log "ERROR: manifest data/batches/$BID.txt is empty"
+  exit 2
+fi
 command -v "$PYTHON" >/dev/null || { log "ERROR: python not found at $PYTHON (create .venv first)"; exit 2; }
 
 # --- Lock: only one pipeline run at a time (cron on Day 8 relies on this) ---
