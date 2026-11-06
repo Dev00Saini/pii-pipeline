@@ -54,6 +54,21 @@ def test_notes_name_wrapped_across_lines(text, name):
     assert names[-1] == name
 
 
+@pytest.mark.parametrize("text, name", [
+    ("cc: Michael Danielson/SF/ECT@ECT, Peter del Vecchio/HOU/ECT@ECT", "Peter del Vecchio"),
+    ("To:     Monica L.\n     Brown/Internal/Accenture@Accenture", "Monica L. Brown"),
+    ("Jan van der Berg/LON/ECT@ECT", "Jan van der Berg"),
+])
+def test_notes_round4_particles_and_initial_wrap(text, name):
+    names = [m.value for m in detect(text) if m.type == "notes_addr"]
+    assert names[-1] == name
+
+
+def test_word_ending_in_period_does_not_join_across_line():
+    (m,) = [m for m in detect("Regards.\n   John Arnold/HOU/ECT@ECT") if m.type == "notes_addr"]
+    assert m.value == "John Arnold"
+
+
 def test_plain_line_break_does_not_join_previous_word():
     (m,) = [m for m in detect("Thanks\nJohn Arnold/HOU/ECT@ECT") if m.type == "notes_addr"]
     assert m.value == "John Arnold"
@@ -148,6 +163,13 @@ def test_signature_block():
 
 
 # --- Known limitations (documented, not fixed) --------------------------------
+@pytest.mark.xfail(reason="two-column forwarded headers: first name on a different line", strict=True)
+def test_notes_two_column_layout():
+    text = "To:     Sheri A.\n11/27/2001 11:10 AM          Righi/Internal/Accenture@Accenture"
+    (m,) = [m for m in detect(text) if m.type == "notes_addr"]
+    assert m.value == "Sheri A. Righi"
+
+
 @pytest.mark.xfail(reason="phone number split across a line break", strict=True)
 def test_phone_split_across_lines():
     assert ("phone", "713-853-\n1234") in types("call 713-853-\n1234")

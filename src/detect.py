@@ -57,7 +57,13 @@ EMAIL_RE = re.compile(
 # doesn't absorb "Thanks".
 # Then either 2-3 "/ORG" segments with optional "@DOMAIN" (Name/HOU/ECT@ECT,
 # Name/HOU/ECT), or one segment plus "@DOMAIN" (Name/Enron@EnronXGate).
-_NAME = r"[A-Z][A-Za-z'.-]*(?:(?: | \n)[A-Z][A-Za-z'.-]*){0,3}"
+# Round 4 (batch_000 review): lowercase particles ("Peter del Vecchio") and a
+# wrap right after an initial with indentation ("Monica L.\n     Brown/...").
+# A line ending in a lone capital + period is clearly mid-name, so that's safe.
+_TOK = r"[A-Z][A-Za-z'.-]*"
+_PART = r"(?:de|del|della|da|di|du|van|von|der|den|la|le|st\.)"
+_SEP = r"(?: | \n|(?<=\b[A-Z]\.)\n[ \t]*)"
+_NAME = rf"{_TOK}(?:{_SEP}(?:{_PART} ){{0,2}}{_TOK}){{0,3}}"
 _SEG = r"[A-Za-z0-9&-]{2,}"
 NOTES_RE = re.compile(
     rf"(?<![\w/])(?P<name>{_NAME})"
