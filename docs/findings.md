@@ -26,3 +26,17 @@ Safer than trying to tell business and personal numbers apart.
 
 | 2 | Join Notes names wrapped as "First \n Last/ORG" | single-word names 1,226 (18.5%) → 112 (1.7%) |
 | 3 | Reject look-alikes: name must have lowercase letters; no-@ org parts must be ALL CAPS | Notes names 6,613 → ___; single-word 112 → ___ |
+
+## Name detection (Day 4, batch_000)
+Known-people list: 38,181 names from X-From/X-To/X-cc headers. spaCy adds names
+the list can't match (first or last names alone). 18 of 20 random spaCy names were real people.
+
+| Round | Change | Result |
+|---|---|---|
+| 4 | Notes names: particles ("del"), wrap after an initial | single-word Notes names 39 → 34 (0.5%) |
+| 5 | Escalate ambiguous words (Will, May, Mark) only at sentence start; ignore header words; drop newsletters from list | escalations 602 → 62 per batch (−90%) |
+| 6 | Trim header words glued on from the next line ("John\nSubject"); speed fix | glued header words ~1,260 → 0; 35 → 48 emails/s |
+
+Decision: public figures are redacted like everyone else, for consistency.
+Known limitation: in two-column forwarded headers, a first name stranded on another
+line is not caught by the Notes detector.
