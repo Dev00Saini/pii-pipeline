@@ -50,9 +50,37 @@ def name_key(text: str) -> str:
     return " ".join(t.strip(".").casefold() for t in text.split())
 
 
-def classify_spacy_person(text: str) -> str | None:
-    """Return 'redact', 'escalate', or None (ignore) for a spaCy PERSON entity."""
+# Words spaCy mislabels as PERSON in email (round 5, batch_000 review).
+NOT_A_NAME = {
+    "subject", "portfolio", "formulas", "re", "fw", "fwd", "thanks", "thank you",
+    "regards", "hello", "hi", "dear", "attached", "attachment", "please", "cc",
+    "bcc", "sent", "forwarded", "original message", "importance", "fyi", "asap",
+}
+
+
+def _sentence_initial_with_more_text(before: str, after: str) -> bool:
+    """True if the word starts a sentence AND more words follow on its line.
+
+    That's where ordinary words get capitalized ("May I ask", "Will you").
+    A word alone on its line ("Thanks,\nFrank") is a sign-off: a name.
+    """
+    line_before = before.rsplit("\n", 1)[-1]
+    starts_sentence = (line_before.strip() == ""
+                       or re.search(r"[.!?:]\s*$", line_before) is not None)
+    more_text = re.match(r"[ \t]*[A-Za-z]", after.split("\n", 1)[0]) is not None
+    return starts_sentence and more_text
+
+
+def classify_spacy_person(text: str, before: str = "", after: str = "") -> str | None:
+    """Return 'redact', 'escalate', or None (ignore) for a spaCy PERSON entity.
+
+    before/after = the text around the entity, used to judge single words
+    like "Frank" or "May" by context (round 5: the word-list-only rule sent
+    ~600 real names per batch to review).
+    """
     t = " ".join(text.split())
+    if t.strip(".,'").casefold() in NOT_A_NAME:
+        return None
     if len(t) < 2 or re.search(r"[\d@/\\_#]", t):
         return None
     tokens = t.split()
@@ -63,8 +91,8 @@ def classify_spacy_person(text: str) -> str | None:
         return None
     if not tokens[0][:1].isupper():
         return None
-    if len(tokens) == 1:
-        return "escalate" if t.strip(".,'").casefold() in AMBIGUOUS else "redact"
+    if len(tokens) == 1 and t.strip(".,'").casefold() in AMBIGUOUS:
+        return "escalate" if _sentence_initial_with_more_text(before, after) else "redact"
     return "redact"
 
 
@@ -120,7 +148,8 @@ class NameDetector:
         for ent in doc.ents:
             if ent.label_ != "PERSON":
                 continue
-            action = classify_spacy_person(ent.text)
+            action = classify_spacy_person(ent.text, doc.text[max(0, ent.start_char - 200):ent.start_char],
+                                           doc.text[ent.end_char:ent.end_char + 200])
             if action:
                 out.append(Match("person", ent.text, ent.start_char, ent.end_char, action,
                                  " ".join(ent.text.split())))
@@ -166,10 +195,10 @@ def _summarize(manifest: Path) -> None:
             spacy_hits = det._spacy_matches(doc)
             for m in known:
                 counts["known_list"] += 1
-                samples.write(f"known_list\tredact\t{m.text}\t{rel}\n")
+                samples.write(f"known_list\tredact\t{' '.join(m.text.split())}\t{rel}\n")
             for m in spacy_hits:
                 counts[f"spacy_{m.action}"] += 1
-                samples.write(f"spacy\t{m.action}\t{m.text}\t{rel}\n")
+                samples.write(f"spacy\t{m.action}\t{' '.join(m.text.split())}\t{rel}\n")
             # Names found by spaCy that the list missed (how much spaCy adds)
             k_spans = [(m.start, m.end) for m in known]
             counts["spacy_only"] += sum(

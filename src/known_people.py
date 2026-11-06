@@ -33,6 +33,10 @@ NOT_PERSON = {
     "mailbox", "announcements", "desk", "staff", "all", "employees", "office",
     "news", "newsletter", "admin", "administrator", "support", "help", "info",
     "the", "and", "of", "for", "on", "behalf", "undisclosed", "recipients", "list",
+    # Round 5 (batch_000 review): newsletters/publications appear as senders,
+    # e.g. "Gas Daily".
+    "daily", "weekly", "monthly", "report", "digest", "alert", "alerts", "journal",
+    "times", "post", "online", "update", "updates", "bulletin", "gas", "power",
 }
 TOKEN_RE = re.compile(r"[A-Z][A-Za-z'-]*\.?|[A-Z]\.")
 

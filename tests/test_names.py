@@ -21,6 +21,7 @@ def test_names_from_header(header, expected):
 
 
 @pytest.mark.parametrize("header", [
+    "Gas Daily",                      # newsletter as sender (round 5)
     "Enron Announcements",            # org word
     "<all.houston@enron.com>",        # address only
     "ENRON NORTH AMERICA",            # all caps
@@ -67,8 +68,8 @@ def test_detect_all_merges_patterns_and_names(det):
 @pytest.mark.parametrize("text, expected", [
     ("Sara Shackleton", "redact"),
     ("Jeff", "redact"),
-    ("Will", "escalate"),            # common word
-    ("Mark", "escalate"),
+    ("Subject", None),               # header word (round 5)
+    ("Portfolio", None),
     ("ENRON", None),                 # all caps
     ("Enron Energy Services", None), # org words
     ("Q3 2001", None),               # digits
@@ -76,6 +77,20 @@ def test_detect_all_merges_patterns_and_names(det):
 ])
 def test_classify_spacy_person(text, expected):
     assert classify_spacy_person(text) == expected
+
+
+# Round 5: ambiguous single words are judged by context.
+@pytest.mark.parametrize("before, word, after, expected", [
+    ("", "May", " I ask a question?", "escalate"),            # sentence start, more text
+    ("Done. ", "Will", " you send it?", "escalate"),
+    ("\n", "Mark", " the date on your calendar", "escalate"),
+    ("Please talk to ", "Frank", " about the deal.", "redact"),  # mid-sentence
+    ("Thanks,\n", "Frank", "\n", "redact"),                   # sign-off alone on line
+    ("Hi ", "Bob", ", see below", "redact"),
+    ("", "Jeff", " said yes", "redact"),                        # not an ambiguous word
+])
+def test_ambiguous_words_judged_by_context(before, word, after, expected):
+    assert classify_spacy_person(word, before, after) == expected
 
 
 # --- spaCy smoke test (runs only where spaCy + model are installed) -------------
