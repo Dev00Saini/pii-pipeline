@@ -25,7 +25,7 @@ INDEX = REPO / "data" / "batches" / "batch_index.csv"
 OUT = REPO / "exports" / "batches.csv"
 
 COLUMNS = [
-    "batch_id", "status", "messages", "parse_failures",
+    "batch_id", "status", "batch_size", "messages", "parse_failures",
     "emails_redacted", "people_redacted", "phones_redacted",
     "escalations_total", "escalations_person", "escalations_ssn", "escalations_card",
     "leak_hits", "leak_email", "leak_phone", "leak_notes", "leak_known_name", "leak_mailbox",
@@ -50,7 +50,8 @@ def row_for(batch_id: str, manifest_count: int) -> dict:
     return {
         "batch_id": batch_id,
         "status": status,
-        "messages": stats.get("messages_redacted", manifest_count if not stats else 0),
+        "batch_size": manifest_count,
+        "messages": stats.get("messages_redacted", ""),
         "parse_failures": stats.get("parse_failures", ""),
         "emails_redacted": red.get("email", 0) if stats else "",
         "people_redacted": red.get("person", 0) if stats else "",
