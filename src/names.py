@@ -147,19 +147,25 @@ class NameDetector:
         out = []
         for run in CAP_RUN_RE.finditer(text):
             toks = []
-            for m in re.finditer(r"\S+", run.group()):
+            for m in re.finditer(r"[^\s-]+", run.group()):
+                # Leak-check round 4: split on hyphens too, so a name joined to a
+                # neighbouring word ("Interview-Rick Buy", "Re--Brian Hoskins",
+                # "Debbie Brown-CEO") is still found. Candidates are checked
+                # using the ORIGINAL text of the span, so hyphenated surnames
+                # ("Mary Smith-Jones") still match as a unit.
                 tok, s, e = m.group(), run.start() + m.start(), run.start() + m.end()
-                # Leak-check round 3: possessives. "John Smith's" matches
-                # "John Smith", and the "'s" stays in the text.
+                # Round 3: possessives. "John Smith's" matches "John Smith",
+                # and the "'s" stays in the text.
                 if tok[-2:] in ("'s", "\u2019s"):
                     tok, e = tok[:-2], e - 2
-                toks.append((tok, s, e))
+                if tok:
+                    toks.append((tok, s, e))
             i = 0
             while i < len(toks):
                 hit = None
-                for n in range(min(5, len(toks) - i), 1, -1):   # longest first
+                for n in range(min(6, len(toks) - i), 1, -1):   # longest first
                     cand = toks[i:i + n]
-                    if name_key(" ".join(c[0] for c in cand)) in self.known:
+                    if name_key(text[cand[0][1]:cand[-1][2]]) in self.known:
                         hit = cand
                         break
                 if hit:

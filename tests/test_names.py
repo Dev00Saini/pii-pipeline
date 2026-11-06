@@ -98,6 +98,18 @@ def test_possessive_name_matches_and_keeps_apostrophe_s(text):
     assert m.text == "John Smith" and text[m.end:m.end + 2] in ("'s", "\u2019s")
 
 
+@pytest.mark.parametrize("text, expected", [
+    ("Interview-Rick Buy agenda", "Rick Buy"),
+    ("Re--Brian Hoskins & team", "Brian Hoskins"),
+    ("Debbie Brown-CEO update", "Debbie Brown"),
+    ("cc Mary Smith-Jones today", "Mary Smith-Jones"),     # hyphenated surname intact
+])
+def test_names_joined_by_hyphens(text, expected):
+    det = NameDetector({"Rick Buy", "Brian Hoskins", "Debbie Brown", "Mary Smith-Jones"}, use_spacy=False)
+    (m,) = det.detect(text)
+    assert m.text == expected
+
+
 def test_names_from_header_quotes_and_titles():
     assert names_from_header("'Scott Josey' <sjosey@enron.com>, John Brindle- VP Research") == \
         ["Scott Josey", "John Brindle"]

@@ -53,6 +53,7 @@ HEADER_NAMES = {"message-id": "Message-ID", "date": "Date", "from": "From", "to"
                 "cc": "Cc", "bcc": "Bcc", "subject": "Subject", "x-from": "X-From",
                 "x-to": "X-To", "x-cc": "X-cc", "x-bcc": "X-bcc"}
 CONTEXT = 40  # characters of context saved around each escalation
+EMBEDDED_MAILBOX_RE = re.compile(r"(?m)^[ \t>]*(X-(?:Folder|Origin|FileName)):.*$")
 
 
 def redact_text(text: str, matches: list[Match], pmap: PlaceholderMap,
@@ -94,6 +95,10 @@ def redact_message(msg: ParsedMessage, det: NameDetector, pmap: PlaceholderMap,
         lines.append(f"{HEADER_NAMES[key]}: {value}")
     body_matches = det.detect_all(msg.body, doc=doc)
     body = redact_text(msg.body, body_matches, pmap, counts, escalations, {"file": rel, "field": "body"})
+    # Leak-check round 4: forwarded emails pasted with full headers carry
+    # X-Folder / X-Origin / X-FileName lines (mailbox owners' names) in the BODY.
+    body, n = EMBEDDED_MAILBOX_RE.subn(lambda m: f"{m.group(1)}: [REMOVED]", body)
+    counts["removed_mailbox_lines"] += n
     return "\n".join(lines) + "\n\n" + body
 
 
@@ -171,6 +176,7 @@ def run(bid: str, use_spacy: bool = True) -> dict:
         "redacted": {k.removeprefix("redacted_"): v for k, v in sorted(counts.items()) if k.startswith("redacted_")},
         "escalations": {k.removeprefix("escalate_"): v for k, v in sorted(counts.items()) if k.startswith("escalate_")},
         "escalations_total": len(escalations),
+        "removed_mailbox_lines": counts["removed_mailbox_lines"],
         "spacy": use_spacy,
         "started": datetime.fromtimestamp(started).isoformat(timespec="seconds"),
         "finished": datetime.now().isoformat(timespec="seconds"),

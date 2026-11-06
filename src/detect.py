@@ -72,9 +72,12 @@ _NAME = rf"{_TOK}(?:{_SEP}(?:{_PART} ){{0,2}}{_TOK}){{0,3}}"
 _SEG = r"[A-Za-z0-9&-]{2,}"
 # Leak-check round 2: up to 5 org parts (Name/ROL/NOR/US/Reuters@Moneynet) and
 # an optional second domain (Name/Corp/Enron@Enron@ENRON).
+# Round 4: up to 3 domains (Name/HOU/ECT@ECT@ENRON@Gateway), and domains may
+# contain "_" (@ENRON_DEVELOPMENT).
+_DOM = r"[A-Za-z0-9&_-]{2,}"
 NOTES_RE = re.compile(
     rf"(?<![\w/])(?P<name>{_NAME})"
-    rf"(?:(?:/{_SEG}){{2,5}}(?:@{_SEG}){{0,2}}|/{_SEG}(?:@{_SEG}){{1,2}})"
+    rf"(?:(?:/{_SEG}){{2,5}}(?:@{_DOM}){{0,3}}|/{_SEG}(?:@{_DOM}){{1,3}})"
     r"(?![\w/@])"
 )
 

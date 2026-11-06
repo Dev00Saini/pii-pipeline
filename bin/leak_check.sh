@@ -74,7 +74,7 @@ g -rHoP "[A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]*){0,3}(?:/[A-Za-z]{2,}){1,3}@[A-Z
   | awk -F'\t' 'BEGIN { OFS = "\t" } { if ($3 !~ /@/ && $3 !~ /[a-z]/) $1 = "notes_caps"; print }' >> "$REPORT"
 # .nsf names inside a web/file path (".../auction.nsf") are shared Notes
 # databases, not a person's mailbox, so only stand-alone ones count (round 3).
-g -rHoP '^X-(Folder|Origin|FileName):.*|(?<![/\w.-])[A-Za-z0-9_-]+\.nsf' "$MSG" \
+g -rHoP '^[ \t>]*X-(Folder|Origin|FileName):(?! \[REMOVED\]$).*|(?<![/\w.-])[A-Za-z0-9_-]+\.nsf' "$MSG" \
   | to_tsv mailbox >> "$REPORT"
 
 if [[ -s "$KNOWN" ]]; then

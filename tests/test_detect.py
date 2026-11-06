@@ -48,6 +48,15 @@ def test_notes_round2_more_orgs_and_double_domain(text, name):
     assert len(ms) == 1 and ms[0].value == name
 
 
+@pytest.mark.parametrize("text, name", [
+    ("cc: Henry Smith/HOU/ECT@ECT@ENRON@Gateway", "Henry Smith"),
+    ("To: Tom Jones/NA/Enron@ECT@ENRON_DEVELOPMENT", "Tom Jones"),
+])
+def test_notes_round4_three_domains_and_underscores(text, name):
+    ms = [m for m in detect(text) if m.type == "notes_addr"]
+    assert len(ms) == 1 and ms[0].value == name
+
+
 @pytest.mark.parametrize("text, expected", [
     ("Smith, Jeffrey  Office713-345-3251", "713-345-3251"),
     ("Phone:  44.207.783.4040, mobile", "44.207.783.4040"),
@@ -203,6 +212,11 @@ def test_signature_block():
 
 
 # --- Known limitations (documented, not fixed) --------------------------------
+@pytest.mark.xfail(reason="X.400-style address with underscores instead of spaces", strict=True)
+def test_underscore_joined_address():
+    assert any(m.type == "notes_addr" for m in detect("IMCEANOTES-Tom_Smith_NA/Corp_HOU/ECT/EU@Exchange"))
+
+
 @pytest.mark.xfail(reason="two-column forwarded headers: first name on a different line", strict=True)
 def test_notes_two_column_layout():
     text = "To:     Sheri A.\n11/27/2001 11:10 AM          Righi/Internal/Accenture@Accenture"

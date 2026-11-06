@@ -39,6 +39,14 @@ def test_folder_headers_dropped(setup):
     assert "Allen" not in out and "X-Folder" not in out and "Date: Mon, 1 Jan 2001" in out
 
 
+def test_embedded_mailbox_headers_in_body_removed(setup):
+    det, pmap, counts, esc = setup
+    body = "-----Original Message-----\nX-Folder: \\Diana_Scholtes_Jun2001\\Inbox\nX-Origin: Scholtes-D\n> X-FileName: dscholt.nsf\nhello"
+    out = redact_message(msg({}, body), det, pmap, counts, esc, "f")
+    assert "Scholtes" not in out and "dscholt" not in out
+    assert out.count(": [REMOVED]") == 3 and counts["removed_mailbox_lines"] == 3
+
+
 def test_escalations_left_in_place_and_logged(setup):
     det, pmap, counts, esc = setup
     out = redact_message(msg({}, "my SSN is 123-45-6789 ok"), det, pmap, counts, esc, "f")

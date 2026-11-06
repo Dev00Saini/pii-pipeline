@@ -40,3 +40,25 @@ the list can't match (first or last names alone). 18 of 20 random spaCy names we
 Decision: public figures are redacted like everyone else, for consistency.
 Known limitation: in two-column forwarded headers, a first name stranded on another
 line is not caught by the Notes detector.
+
+## Independent leak check (Day 6, batches 000–002, 15,000 emails)
+`bin/leak_check.sh` re-scans redacted output with grep/awk only: different patterns,
+a different regex engine, and a direct lookup against the known-people list, so a
+redactor bug can't hide its own leak. `src/explain_leak.py` shows (masked) which
+detector matched at each leak, or that none did.
+
+| Round | Fix (cause found with the explain tool) | Hits 000 / 001 / 002 | Total | per 1k |
+|---|---|---|---|---|
+| 0 | Baseline | 960 / 1,762 / 681 | 3,403 | 227 |
+| 1 | Emails in Outlook quotes ('a@b.com') or starting with "."; longest match wins overlaps (an escalated word no longer blocks a longer redaction); ALL-CAPS Notes names with @ | 161 / 297 / 181 | 639 | 43 |
+| 2 | Header names with quotes, "- Title", ".Suffix"; Notes with 2 domains / 5 org parts; phones glued to a word or with a country code | 26 / 61 / 76 | 163 | 11 |
+| 3 | Possessives ("John Smith's"); phones with a word glued after; ignore .nsf inside URLs | 16 / 45 / 28 | 89 | 6 |
+| 4 | Names joined by hyphens ("Interview-Rick Buy"); Notes with 3 domains / "_"; X-Folder lines inside forwarded bodies | __ / __ / __ | __ | __ |
+
+**Result: 3,403 → __ hits (−__%)**, while the check itself got stricter (known-people list 38,181 → 39,705 names).
+
+Known limitations: X.400-style addresses with underscores instead of spaces
+(`Tom_Smith_NA/...`); a name glued to lowercase letters before it; first names
+stranded on another line in two-column forwarded headers. Escalated items
+(SSN-like, card-like, ambiguous single names) are left in place by design until
+reviewed (Day 9).
