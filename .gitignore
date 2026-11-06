@@ -17,3 +17,6 @@ __pycache__/
 
 # Excel lock files
 ~$*
+
+# Review workbook (contains real personal data)
+review/
