@@ -59,8 +59,6 @@ def main() -> None:
             print("    was created by redaction, e.g. leftover pieces around a placeholder)")
             continue
         text = fields[field]
-        i = text.index(leak)
-        print(f"    field: {field}   context: {mask(text[max(0, i - 15):i])}[{mask(leak, True)}]{mask(text[i + len(leak):i + len(leak) + 15])}")
         if field == "body":
             doc = det.nlp(text[:SPACY_MAX_CHARS]) if det.use_spacy else None
             ms = det.detect_all(text, doc)
@@ -70,14 +68,25 @@ def main() -> None:
             if field.startswith("x-"):
                 ms = _resolve_overlaps(ms + header_name_matches(text))
             raw = []
+        # Check EVERY occurrence: the leaking one is the one no kept match covers
+        # (round 2 fix: the first occurrence is often redacted fine).
+        starts = [mm.start() for mm in re.finditer(re.escape(leak), text)]
+        missed = [i for i in starts
+                  if not any(m.start <= i and m.end >= i + len(leak) for m in ms)]
+        print(f"    field: {field}   occurrences: {len(starts)}   not covered: {len(missed)}")
+        if not missed:
+            print("    every occurrence is covered in the original: the leak was CREATED by")
+            print("    redaction (a leftover piece next to a placeholder)")
+            continue
+        i = missed[0]
         j = i + len(leak)
+        print(f"    context: {mask(text[max(0, i - 15):i])}[{mask(leak, True)}]{mask(text[j:j + 15])}")
         kept = [m for m in ms if m.start < j and m.end > i]
         dropped = [m for m in raw if m.start < j and m.end > i and m not in kept]
         if not kept:
             print("    NO detector match kept at this spot")
         for m in kept:
-            cover = "covers all" if m.start <= i and m.end >= j else "covers part"
-            print(f"    kept:    {m.type}/{m.action} ({cover}): {mask(m.text, True)}")
+            print(f"    kept (covers part): {m.type}/{m.action}: {mask(m.text, True)}")
         for m in dropped:
             print(f"    dropped by overlap rule: {m.type}/{m.action}: {mask(m.text, True)}")
 

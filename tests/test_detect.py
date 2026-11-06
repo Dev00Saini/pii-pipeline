@@ -38,6 +38,30 @@ def test_all_caps_notes_name_with_at_domain():
     assert len(ms) == 1 and ms[0].value == "JEFF SHIVELY"
 
 
+# Leak-check round 2
+@pytest.mark.parametrize("text, name", [
+    ("cc: Xiaoming Zhu/Corp/Enron@Enron@ENRON", "Xiaoming Zhu"),
+    ("To: Kim Mai/ROL/NOR/US/Reuters@Moneynet", "Kim Mai"),
+])
+def test_notes_round2_more_orgs_and_double_domain(text, name):
+    ms = [m for m in detect(text) if m.type == "notes_addr"]
+    assert len(ms) == 1 and ms[0].value == name
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Smith, Jeffrey  Office713-345-3251", "713-345-3251"),
+    ("Phone:  44.207.783.4040, mobile", "44.207.783.4040"),
+    ("Tel.713-524-9144 again", "713-524-9144"),         # dot after a word is fine
+    ("call 1.713.853.1234", "1.713.853.1234"),          # US country code with dots
+])
+def test_phone_round2(text, expected):
+    assert ("phone", expected) in types(text)
+
+
+def test_email_wrapped_line_starting_with_plus():
+    assert any(t[0] == "email" for t in types("> +2E+20Smith@enron.com]"))
+
+
 def test_email_value_is_lowercased_for_consistent_placeholders():
     (m,) = detect("Mike.Roberts@ENRON.COM")
     assert m.value == "mike.roberts@enron.com"

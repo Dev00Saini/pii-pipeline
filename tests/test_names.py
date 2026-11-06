@@ -79,6 +79,23 @@ def test_escalation_inside_longer_match_does_not_block_redaction():
     assert _resolve_overlaps([mark, notes]) == [notes]
 
 
+# Leak-check round 2: names in X- headers with quotes, titles, glued suffixes
+@pytest.mark.parametrize("text, expected", [
+    ("'Scott Josey' <sjosey@enron.com>", "Scott Josey"),
+    ("John Brindle- VP Research Group", "John Brindle"),
+    ("Brad McKay.Mail <bmckay@enron.com>", "Brad McKay."),
+])
+def test_known_names_with_header_punctuation(text, expected):
+    det = NameDetector({"Scott Josey", "John Brindle", "Brad McKay"}, use_spacy=False)
+    (m,) = [m for m in det.detect(text)]
+    assert m.text == expected
+
+
+def test_names_from_header_quotes_and_titles():
+    assert names_from_header("'Scott Josey' <sjosey@enron.com>, John Brindle- VP Research") == \
+        ["Scott Josey", "John Brindle"]
+
+
 # --- rules for spaCy PERSON entities -------------------------------------------
 @pytest.mark.parametrize("text, expected", [
     ("Sara Shackleton", "redact"),

@@ -45,9 +45,11 @@ class Match:
 # Leak-check round 1: the local part may START with quotes or dots, as in
 # Outlook's 'jana.morse@dynegy.com' and corpus oddities like .ward@enron.com.
 # (The old pattern refused to start after ' or ., so those leaked entirely.)
+# Round 2: also a leading "+" (second half of a long encoded address wrapped
+# onto a new line).
 EMAIL_RE = re.compile(
     r"(?<![\w.+-])"
-    r"[.']*[A-Za-z0-9][A-Za-z0-9._%+'-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
+    r"[.'+]*[A-Za-z0-9][A-Za-z0-9._%+'-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
     r"(?![\w-])"
 )
 
@@ -68,17 +70,22 @@ _PART = r"(?:de|del|della|da|di|du|van|von|der|den|la|le|st\.)"
 _SEP = r"(?: | \n|(?<=\b[A-Z]\.)\n[ \t]*)"
 _NAME = rf"{_TOK}(?:{_SEP}(?:{_PART} ){{0,2}}{_TOK}){{0,3}}"
 _SEG = r"[A-Za-z0-9&-]{2,}"
+# Leak-check round 2: up to 5 org parts (Name/ROL/NOR/US/Reuters@Moneynet) and
+# an optional second domain (Name/Corp/Enron@Enron@ENRON).
 NOTES_RE = re.compile(
     rf"(?<![\w/])(?P<name>{_NAME})"
-    rf"(?:(?:/{_SEG}){{2,3}}(?:@{_SEG})?|/{_SEG}@{_SEG})"
+    rf"(?:(?:/{_SEG}){{2,5}}(?:@{_SEG}){{0,2}}|/{_SEG}(?:@{_SEG}){{1,2}})"
     r"(?![\w/@])"
 )
 
 # --- Phone numbers ---------------------------------------------------------
 _EXT = r"(?:\s*(?:x|ext\.?|extension)\s*\d{1,5})?"
 PHONE_RE = re.compile(
-    r"(?<![\w.$/-])"                 # not glued to other digits, $, dates
-    r"(?:\+?1[\s.-]?)?"              # optional country code
+    # Leak-check round 2: a WORD may touch the number ("Office713-345-3251" in
+    # signature tables), so only digits, ".", "$", "/", "_", "-" block it; and
+    # a short country code may precede it ("44.207.783.4040").
+    r"(?<![\d$/_-])(?<!\d\.)"         # not glued to digits, $, dates, decimals ("Tel.713" is OK)
+    r"(?:\+?\d{1,3}[\s.-])?"          # optional country code
     r"(?:\(\d{3}\)\s?|\d{3}[\s.-])"  # area code: (713) or 713- / 713. / 713␠
     r"\d{3}[\s.-]\d{4}"
     + _EXT +

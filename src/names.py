@@ -41,13 +41,16 @@ AMBIGUOUS = {
     "young", "long", "white", "black", "brown", "green", "gray", "hall", "lane", "ward",
 }
 
-_TOK = r"[A-Z][A-Za-z'.-]*"
+# Leak-check round 2: a name word can't END with "-" or "'" and can't run on
+# through a dot, so "'Scott Josey'", "John Brindle- VP" and "Brad McKay.Xyz"
+# still yield "Scott Josey", "John Brindle", "Brad McKay".
+_TOK = r"[A-Z](?:[A-Za-z'-]*[A-Za-z])?\.?"
 _PART = "(?:" + "|".join(sorted(PARTICLES)) + ")"
 CAP_RUN_RE = re.compile(rf"{_TOK}(?:[ \t]+(?:{_PART}[ \t]+){{0,2}}{_TOK})+")
 
 
 def name_key(text: str) -> str:
-    return " ".join(t.strip(".").casefold() for t in text.split())
+    return " ".join(t.strip(".-'").casefold() for t in text.split())
 
 
 # Words spaCy mislabels as PERSON in email (round 5, batch_000 review).

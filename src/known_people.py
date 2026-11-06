@@ -61,7 +61,9 @@ def names_from_header(value: str) -> list[str]:
         # email address and take the last name with it), then bare addresses.
         part = re.sub(r"/[A-Za-z0-9&/-]+(?:@\S+)?", " ", part)  # Notes /HOU/ECT@ECT
         part = re.sub(r"\S+@\S+", " ", part)      # bare email addresses
-        tokens = part.split()
+        part = re.split(r"\s*-\s+|\s+-\s*", part)[0]   # "John Brindle- VP Research" (round 2)
+        tokens = [t.strip("'") for t in part.split()]   # 'Scott Josey' (round 2)
+        tokens = [t for t in tokens if t]
         if not 2 <= len(tokens) <= 5:
             continue
         if any(t.strip(".").casefold() in NOT_PERSON for t in tokens):

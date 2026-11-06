@@ -36,9 +36,10 @@ def normalize_key(kind: str, value: str) -> str:
     if kind == "email":
         return value.strip().lstrip(".'").casefold()   # 'a@b.com' == a@b.com
     if kind == "phone":
-        digits = re.sub(r"\D", "", value)
-        if len(digits) == 11 and digits.startswith("1"):
-            digits = digits[1:]  # drop US country code
+        number = re.split(r"(?i)\s*(?:x|ext\.?|extension)\s*\d", value)[0]  # drop extension
+        digits = re.sub(r"\D", "", number)
+        if len(digits) > 10 and not value.lstrip().startswith(("+", "00")):
+            digits = digits[-10:]  # drop a US/short country-code prefix
         return digits
     raise ValueError(f"unknown kind: {kind}")
 

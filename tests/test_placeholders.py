@@ -32,6 +32,14 @@ def test_phone_formats_share_a_key(a, b):
     assert normalize_key("phone", a) == normalize_key("phone", b)
 
 
+@pytest.mark.parametrize("a, b", [
+    ("713-853-1234 x5678", "(713) 853-1234"),     # extension dropped
+    ("15 713-853-1234", "713.853.1234"),          # short prefix dropped
+])
+def test_phone_round2_keys(a, b):
+    assert normalize_key("phone", a) == normalize_key("phone", b)
+
+
 def test_same_value_same_placeholder(tmp_path):
     m = PlaceholderMap(tmp_path / "map.json")
     p1 = m.get("notes_addr", "Phillip K Allen")       # from "Phillip K Allen/HOU/ECT"
