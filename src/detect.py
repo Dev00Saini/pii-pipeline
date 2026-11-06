@@ -1,0 +1,176 @@
+"""detect.py: pattern-based detectors for personal information.
+
+Each detector returns Match objects: (type, text, start, end, action, value).
+  action = "redact"   -> replaced automatically later (Day 5)
+  action = "escalate" -> sent to the human review queue, never auto-redacted
+  value  = the part that identifies the person (used for consistent
+           placeholders on Day 4); for a Notes address it's just the name
+
+Types:
+  email        standard addresses, any domain (not just @enron.com)
+  notes_addr   Lotus Notes style: "First M Last/HOU/ECT@ECT", "First Last/HOU/ECT"
+  phone        US numbers: (713) 853-1234, 713-853-1234, 713.853.1234,
+               +1 713 853 1234, with optional extension; 7-digit local numbers
+               only when labeled ("Phone: 853-1234")
+  ssn_like     ###-##-#### in valid SSN ranges            -> escalate
+  card_like    13-16 digits that pass the Luhn checksum   -> escalate
+
+Usage from the shell (counts per type for one batch; samples go to data/):
+  python3 src/detect.py data/batches/batch_000.txt
+"""
+from __future__ import annotations
+
+import re
+import sys
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Match:
+    type: str
+    text: str
+    start: int
+    end: int
+    action: str = "redact"
+    value: str = ""
+
+
+# --- Email ---------------------------------------------------------------
+# Local part allows . _ % + ' - ; domain must end in a 2+ letter TLD.
+# The domain can't end in a dot, so "a@b.com." at a sentence end stops at .com
+EMAIL_RE = re.compile(
+    r"(?<![\w.+'-])"
+    r"[A-Za-z0-9][A-Za-z0-9._%+'-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
+    r"(?![\w-])"
+)
+
+# --- Lotus Notes addresses -------------------------------------------------
+# Name: 1-4 capitalized words or initials ("Vince J Kaminski", "Mary-Ann O'Neil").
+# Then either 2-3 "/ORG" segments with optional "@DOMAIN" (Name/HOU/ECT@ECT,
+# Name/HOU/ECT), or one segment plus "@DOMAIN" (Name/Enron@EnronXGate).
+_NAME = r"[A-Z][A-Za-z'.-]*(?: [A-Z][A-Za-z'.-]*){0,3}"
+_SEG = r"[A-Za-z0-9&-]{2,}"
+NOTES_RE = re.compile(
+    rf"(?<![\w/])(?P<name>{_NAME})"
+    rf"(?:(?:/{_SEG}){{2,3}}(?:@{_SEG})?|/{_SEG}@{_SEG})"
+    r"(?![\w/@])"
+)
+
+# --- Phone numbers ---------------------------------------------------------
+_EXT = r"(?:\s*(?:x|ext\.?|extension)\s*\d{1,5})?"
+PHONE_RE = re.compile(
+    r"(?<![\w.$/-])"                 # not glued to other digits, $, dates
+    r"(?:\+?1[\s.-]?)?"              # optional country code
+    r"(?:\(\d{3}\)\s?|\d{3}[\s.-])"  # area code: (713) or 713- / 713. / 713␠
+    r"\d{3}[\s.-]\d{4}"
+    + _EXT +
+    r"(?![\w-]|\.\d)"
+)
+# 7-digit local numbers are too ambiguous alone (prices, IDs), so only when labeled.
+LABELED_LOCAL_RE = re.compile(
+    r"(?i)\b(?:phone|ph|tel|telephone|fax|cell|mobile|office|pager|direct)\b"
+    r"[\s.:#-]*(?P<num>(?<!\d)\d{3}[\s.-]\d{4}" + _EXT + r")(?![\w-]|\.\d)"
+)
+
+# --- Escalate-only patterns -------------------------------------------------
+SSN_RE = re.compile(r"(?<![\w-])(\d{3})-(\d{2})-(\d{4})(?![\w-])")
+CARD_RE = re.compile(r"(?<![\w-])(?:\d[ -]?){12,15}\d(?![\w-])")
+
+
+def _valid_ssn(area: str, group: str, serial: str) -> bool:
+    return not (area in ("000", "666") or area.startswith("9")
+                or group == "00" or serial == "0000")
+
+
+def _luhn_ok(digits: str) -> bool:
+    total, double = 0, False
+    for ch in reversed(digits):
+        d = int(ch)
+        if double:
+            d = d * 2 - 9 if d > 4 else d * 2
+        total += d
+        double = not double
+    return total % 10 == 0
+
+
+def detect(text: str) -> list[Match]:
+    found: list[Match] = []
+
+    for m in EMAIL_RE.finditer(text):
+        found.append(Match("email", m.group(), m.start(), m.end(), "redact", m.group().lower()))
+
+    for m in NOTES_RE.finditer(text):
+        found.append(Match("notes_addr", m.group(), m.start(), m.end(), "redact", m.group("name")))
+
+    for m in PHONE_RE.finditer(text):
+        found.append(Match("phone", m.group(), m.start(), m.end(), "redact",
+                           re.sub(r"\D", "", m.group())))
+    for m in LABELED_LOCAL_RE.finditer(text):
+        s, e = m.span("num")
+        found.append(Match("phone", m.group("num"), s, e, "redact", re.sub(r"\D", "", m.group("num"))))
+
+    for m in SSN_RE.finditer(text):
+        if _valid_ssn(*m.groups()):
+            found.append(Match("ssn_like", m.group(), m.start(), m.end(), "escalate", m.group()))
+
+    for m in CARD_RE.finditer(text):
+        digits = re.sub(r"\D", "", m.group())
+        if 13 <= len(digits) <= 16 and _luhn_ok(digits):
+            found.append(Match("card_like", m.group(), m.start(), m.end(), "escalate", digits))
+
+    return _resolve_overlaps(found)
+
+
+def _resolve_overlaps(matches: list[Match]) -> list[Match]:
+    """Where matches overlap, keep escalations first, then the longest match."""
+    ranked = sorted(matches, key=lambda m: (m.action != "escalate", -(m.end - m.start), m.start))
+    kept: list[Match] = []
+    for m in ranked:
+        if all(m.end <= k.start or m.start >= k.end for k in kept):
+            kept.append(m)
+    return sorted(kept, key=lambda m: m.start)
+
+
+# --- Shell entry point: summarize one batch ---------------------------------
+def _summarize(manifest: Path) -> None:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from parse import ParseError, parse_file
+
+    repo = Path(__file__).resolve().parent.parent
+    sample_path = repo / "data" / f"detect_samples_{manifest.stem}.tsv"
+    counts, msgs_with = Counter(), Counter()
+    n = 0
+    with manifest.open() as paths, sample_path.open("w") as samples:
+        for line in paths:
+            rel = line.rstrip("\n")
+            try:
+                msg = parse_file(repo / rel)
+            except ParseError:
+                continue
+            n += 1
+            # Headers that hold people's names/addresses, plus the body.
+            fields = {k: msg.headers.get(k, "") for k in
+                      ("from", "to", "cc", "bcc", "x-from", "x-to", "x-cc", "x-bcc")}
+            fields["body"] = msg.body
+            seen_types = set()
+            for field, text in fields.items():
+                for m in detect(text):
+                    counts[m.type] += 1
+                    seen_types.add(m.type)
+                    samples.write(f"{m.type}\t{field}\t{m.action}\t{m.text}\t{rel}\n")
+            for t in seen_types:
+                msgs_with[t] += 1
+
+    print(f"messages scanned: {n}")
+    print(f"{'type':<12}{'matches':>10}{'messages':>10}")
+    for t in ("email", "notes_addr", "phone", "ssn_like", "card_like"):
+        print(f"{t:<12}{counts[t]:>10}{msgs_with[t]:>10}")
+    print(f"every match listed in {sample_path.relative_to(repo)} (stays local: data/ is gitignored)")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit("usage: python3 src/detect.py <batch manifest>")
+    _summarize(Path(sys.argv[1]))
