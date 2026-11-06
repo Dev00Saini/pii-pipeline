@@ -185,9 +185,29 @@ class NameDetector:
             found += self._spacy_matches(doc)
         return found
 
+    def _refine_notes(self, m: Match) -> Match:
+        """Trim a leading non-name word off a Notes match using the known list.
+
+        detect.py's Notes pattern can absorb a capitalized word before the name
+        ("Ask Phillip Allen/HOU/ECT"), which would delete "Ask" and give the
+        person a different placeholder. If a shorter tail of the name is a
+        known person, start the match there (Day 5, found in redactor tests).
+        """
+        if m.type != "notes_addr" or name_key(m.value) in self.known:
+            return m
+        toks = list(re.finditer(r"\S+", m.text))
+        words = m.value.split()
+        for i in range(1, len(words) - 1):          # keep at least 2 words
+            tail = " ".join(words[i:])
+            if name_key(tail) in self.known:
+                new_start = m.start + toks[i].start()
+                return Match(m.type, m.text[toks[i].start():], new_start, m.end, m.action, tail)
+        return m
+
     def detect_all(self, text: str, doc=None) -> list[Match]:
         """Pattern detectors + names, overlaps resolved (longest / escalations win)."""
-        return _resolve_overlaps(detect(text) + self.detect(text, doc))
+        patterns = [self._refine_notes(m) for m in detect(text)]
+        return _resolve_overlaps(patterns + self.detect(text, doc))
 
 
 # --- Shell entry point: summarize one batch ---------------------------------

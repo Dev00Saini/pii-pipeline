@@ -64,6 +64,12 @@ def test_detect_all_merges_patterns_and_names(det):
     assert kinds == ["notes_addr", "person", "phone"]   # Notes match beats the shorter name
 
 
+def test_known_list_trims_word_absorbed_before_notes_name():
+    det = NameDetector({"Vince Kaminski"}, use_spacy=False)
+    (m,) = det.detect_all("Please Ask Vince Kaminski/HOU/ECT")
+    assert (m.text, m.value) == ("Vince Kaminski/HOU/ECT", "Vince Kaminski")
+
+
 # --- rules for spaCy PERSON entities -------------------------------------------
 @pytest.mark.parametrize("text, expected", [
     ("Sara Shackleton", "redact"),
