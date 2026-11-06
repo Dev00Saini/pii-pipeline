@@ -51,6 +51,25 @@ n_with_id=$(wc -l < "$DATA_DIR/message_ids.tmp")
 n_unique_id=$(uniq "$DATA_DIR/message_ids.tmp" | wc -l)
 rm -f "$DATA_DIR/message_ids.tmp"
 
+# --- Duplicates by header fingerprint (Date + From + Subject) ---
+# The corpus files the same email in several folders. Each copy gets its own
+# generated Message-ID and its own X-Folder header, so the two checks above
+# miss them. Files use CRLF line endings, so strip \r before comparing.
+log "counting header-fingerprint duplicates"
+find "$MAILDIR" -type f -print0 |
+  xargs -0 awk '
+    FNR==1 { d=""; f=""; s="" }
+    { sub(/\r$/, "") }
+    /^Date:/    && d=="" { d=$0 }
+    /^From:/    && f=="" { f=$0 }
+    /^Subject:/ && s=="" { s=$0 }
+    /^$/ { print d "|" f "|" s "\t" FILENAME; nextfile }
+  ' > "$DATA_DIR/header_keys.tsv"
+read -r fp_groups fp_extra < <(
+  cut -f1 "$DATA_DIR/header_keys.tsv" | sort | uniq -c |
+  awk '$1 > 1 { groups++; extra += $1 - 1 } END { print groups+0, extra+0 }'
+)
+
 # --- Biggest user folders (for your profile notes; stays local) ---
 top_users=$(find "$MAILDIR" -mindepth 2 -type f | awk -F/ -v d="$MAILDIR" '
   { sub("^" d "/", ""); split($0, p, "/"); c[p[1]]++ }
@@ -68,6 +87,9 @@ top_users=$(find "$MAILDIR" -mindepth 2 -type f | awk -F/ -v d="$MAILDIR" '
   echo "files with a Message-ID:       $n_with_id"
   echo "unique Message-IDs:            $n_unique_id"
   echo "extra copies by Message-ID:    $(( n_with_id - n_unique_id ))"
+  echo "fingerprint duplicate groups:  $fp_groups"
+  echo "extra copies by fingerprint:   $fp_extra"
+  echo "unique messages (fingerprint): $(( n_files - fp_extra ))"
   echo
   echo "largest user folders (files, folder):"
   echo "$top_users"
