@@ -59,6 +59,19 @@ def test_plain_line_break_does_not_join_previous_word():
     assert m.value == "John Arnold"
 
 
+@pytest.mark.parametrize("text", [
+    "From (MM/DD/YY):      To (MM/DD/YY)",     # form date placeholders
+    "Rate/Term/Downpayment",                    # slash-separated list
+    "Gas/Power/Coal desks",
+])
+def test_notes_lookalikes_rejected(text):
+    assert [t for t in types(text) if t[0] == "notes_addr"] == []
+
+
+def test_mixed_case_orgs_need_at_domain():
+    assert ("notes_addr", "Laura Harder/Corp/Enron@Enron") in types("cc: Laura Harder/Corp/Enron@Enron")
+
+
 def test_city_state_is_not_a_notes_address():
     assert types("Our office in Houston/TX is closed") == []
 

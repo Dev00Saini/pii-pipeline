@@ -120,6 +120,16 @@ def detect(text: str) -> list[Match]:
     for m in NOTES_RE.finditer(text):
         # Normalize "Scott \nMills" -> "Scott Mills" so placeholders stay consistent.
         name = " ".join(m.group("name").split())
+        # Round 3 (batch_000 review): reject look-alikes such as a form's
+        # "MM/DD/YY" or a slash list "Rate/Term/Downpayment".
+        #  - a real name has lowercase letters ("MM" doesn't)
+        #  - without "@DOMAIN", org parts must be ALL CAPS (/HOU/ECT); mixed-case
+        #    parts (/Corp/Enron) only occur in real addresses with "@Enron"
+        if not re.search(r"[a-z]", name):
+            continue
+        orgs = m.group()[len(m.group("name")):]
+        if "@" not in orgs and not all(seg.isupper() for seg in orgs.strip("/").split("/")):
+            continue
         found.append(Match("notes_addr", m.group(), m.start(), m.end(), "redact", name))
 
     for m in PHONE_RE.finditer(text):
