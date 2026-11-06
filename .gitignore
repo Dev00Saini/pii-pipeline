@@ -1,0 +1,19 @@
+# Raw data, outputs, and anything containing real personal information
+data/
+output/
+secrets/
+logs/
+exports/*.csv
+qa/QA_Labels.xlsx
+qa/labels.csv
+tracker/*.xlsx
+!tracker/sample/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Excel lock files
+~$*
