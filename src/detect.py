@@ -10,10 +10,12 @@ Types:
   email        standard addresses, any domain (not just @enron.com)
   notes_addr   Lotus Notes style: "First M Last/HOU/ECT@ECT", "First Last/HOU/ECT"
   phone        US numbers: (713) 853-1234, 713-853-1234, 713.853.1234,
-               +1 713 853 1234, with optional extension; 7-digit local numbers
+               +1 713 853 1234, with optional extension; international numbers
+               starting with + or 00; 7-digit local numbers
                only when labeled ("Phone: 853-1234")
   ssn_like     ###-##-#### in valid SSN ranges            -> escalate
-  card_like    13-16 digits that pass the Luhn checksum   -> escalate
+  card_like    13-16 digits, card-shaped (starts 3-6, standard grouping),
+               passing the Luhn checksum                  -> escalate
 
 Usage from the shell (counts per type for one batch; samples go to data/):
   python3 src/detect.py data/batches/batch_000.txt
@@ -68,6 +70,11 @@ PHONE_RE = re.compile(
     + _EXT +
     r"(?![\w-]|\.\d)"
 )
+# International: "+44 20 7783 6777" or "0044 207 78 36777" (+ or 00, then a
+# 1-3 digit country code, then 7-12 more digits in groups).
+INTL_PHONE_RE = re.compile(
+    r"(?<![\w.$/+-])(?:\+|00)[1-9]\d{0,2}(?:[\s.-]?\(?\d{1,4}\)?){2,5}(?![\w-]|\.\d)"
+)
 # 7-digit local numbers are too ambiguous alone (prices, IDs), so only when labeled.
 LABELED_LOCAL_RE = re.compile(
     r"(?i)\b(?:phone|ph|tel|telephone|fax|cell|mobile|office|pager|direct)\b"
@@ -77,6 +84,10 @@ LABELED_LOCAL_RE = re.compile(
 # --- Escalate-only patterns -------------------------------------------------
 SSN_RE = re.compile(r"(?<![\w-])(\d{3})-(\d{2})-(\d{4})(?![\w-])")
 CARD_RE = re.compile(r"(?<![\w-])(?:\d[ -]?){12,15}\d(?![\w-])")
+# Real card numbers start with 3-6 and are written either as one run of digits
+# or in the standard groupings (4-4-4-4, 4-6-5 for Amex). This rules out
+# zero-padded IDs ("000000000077131") and runs of dates ("30 2001 2000 2001").
+CARD_GROUPINGS = {(16,), (15,), (14,), (13,), (4, 4, 4, 4), (4, 6, 5), (4, 4, 4, 1), (4, 4, 4, 2), (4, 4, 4, 3)}
 
 
 def _valid_ssn(area: str, group: str, serial: str) -> bool:
@@ -107,6 +118,14 @@ def detect(text: str) -> list[Match]:
     for m in PHONE_RE.finditer(text):
         found.append(Match("phone", m.group(), m.start(), m.end(), "redact",
                            re.sub(r"\D", "", m.group())))
+    for m in INTL_PHONE_RE.finditer(text):
+        digits = re.sub(r"\D", "", m.group())
+        is_00 = m.group().startswith("00")
+        # An unseparated "00..." run is far more likely an ID than a phone.
+        if is_00 and not re.search(r"[\s.()-]", m.group()):
+            continue
+        if 10 <= len(digits) - (2 if is_00 else 0) <= 15:
+            found.append(Match("phone", m.group(), m.start(), m.end(), "redact", digits))
     for m in LABELED_LOCAL_RE.finditer(text):
         s, e = m.span("num")
         found.append(Match("phone", m.group("num"), s, e, "redact", re.sub(r"\D", "", m.group("num"))))
@@ -117,7 +136,9 @@ def detect(text: str) -> list[Match]:
 
     for m in CARD_RE.finditer(text):
         digits = re.sub(r"\D", "", m.group())
-        if 13 <= len(digits) <= 16 and _luhn_ok(digits):
+        groups = tuple(len(g) for g in re.split(r"[ -]", m.group()))
+        if (13 <= len(digits) <= 16 and digits[0] in "3456"
+                and groups in CARD_GROUPINGS and _luhn_ok(digits)):
             found.append(Match("card_like", m.group(), m.start(), m.end(), "escalate", digits))
 
     return _resolve_overlaps(found)

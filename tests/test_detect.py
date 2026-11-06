@@ -72,6 +72,8 @@ def test_phone_found(text, expected):
     "at 10:30 or 14:45",             # times
     "server 192.168.100.1",          # IP address
     "costs 853-1234 units",          # unlabeled 7-digit: ambiguous, skipped
+    "volume 001 2345 678",           # 00-prefixed ID too short to be international
+    "deal 0012345678901",            # unseparated 00-prefixed run: an ID
 ])
 def test_not_a_phone(text):
     assert [t for t in types(text) if t[0] == "phone"] == []
@@ -86,6 +88,25 @@ def test_ssn_like_escalated():
 @pytest.mark.parametrize("text", ["000-12-3456", "666-12-3456", "912-34-5678", "123-00-4567"])
 def test_impossible_ssns_ignored(text):
     assert types(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "acct 000000000077131",          # zero-padded ID (passed Luhn in batch_000)
+    "years 30 2001 2000 2001",       # run of dates (passed Luhn in batch_000)
+    "ref 4111-111-111-111-1",        # card digits, wrong grouping
+])
+def test_not_card_like(text):
+    assert [t for t in types(text) if t[0] == "card_like"] == []
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("tel 0044 207 78 36777", "0044 207 78 36777"),     # found in batch_000
+    ("call +44 20 7783 6777", "+44 20 7783 6777"),
+    ("call +1 (713) 853-1234", "+1 (713) 853-1234"),
+])
+def test_international_phone(text, expected):
+    assert ("phone", expected) in types(text)
+    assert [t for t in types(text) if t[0] == "card_like"] == []
 
 
 def test_card_like_escalated_only_if_luhn_valid():
