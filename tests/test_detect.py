@@ -45,6 +45,20 @@ def test_notes_address(text, name):
     assert len(ms) == 1 and ms[0].value == name
 
 
+@pytest.mark.parametrize("text, name", [
+    ("cc: Russ Severson/HOU/ECT@ECT, Scott \nMills/HOU/ECT@ECT", "Scott Mills"),
+    ("Kimberly Brown/HOU/ECT@ECT, Paul T \nLucci/NA/Enron@Enron", "Paul T Lucci"),
+])
+def test_notes_name_wrapped_across_lines(text, name):
+    names = [m.value for m in detect(text) if m.type == "notes_addr"]
+    assert names[-1] == name
+
+
+def test_plain_line_break_does_not_join_previous_word():
+    (m,) = [m for m in detect("Thanks\nJohn Arnold/HOU/ECT@ECT") if m.type == "notes_addr"]
+    assert m.value == "John Arnold"
+
+
 def test_city_state_is_not_a_notes_address():
     assert types("Our office in Houston/TX is closed") == []
 
@@ -129,6 +143,12 @@ def test_phone_split_across_lines():
 @pytest.mark.xfail(reason="unformatted 10-digit numbers skipped: too many IDs look the same", strict=True)
 def test_unformatted_ten_digits():
     assert any(t[0] == "phone" for t in types("call 7138531234"))
+
+
+@pytest.mark.xfail(reason="wrapped line ending in 'Word \\n' before a name gets joined to it", strict=True)
+def test_notes_wrap_after_unrelated_word():
+    (m,) = [m for m in detect("Regards \nJohn Arnold/HOU/ECT") if m.type == "notes_addr"]
+    assert m.value == "John Arnold"
 
 
 @pytest.mark.xfail(reason="name before a Notes address absorbs a leading capitalized word", strict=True)

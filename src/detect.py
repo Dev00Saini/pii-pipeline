@@ -50,9 +50,14 @@ EMAIL_RE = re.compile(
 
 # --- Lotus Notes addresses -------------------------------------------------
 # Name: 1-4 capitalized words or initials ("Vince J Kaminski", "Mary-Ann O'Neil").
+# Words are separated by a space, or by "space + line break": Lotus Notes wraps
+# long recipient lists mid-name, leaving "Scott \nMills/HOU/ECT@ECT" (batch_000
+# review: 1,226 of 6,613 body names were cut to just the last name). A line
+# break WITHOUT the trailing space is not joined, so "Thanks\nJohn Arnold/..."
+# doesn't absorb "Thanks".
 # Then either 2-3 "/ORG" segments with optional "@DOMAIN" (Name/HOU/ECT@ECT,
 # Name/HOU/ECT), or one segment plus "@DOMAIN" (Name/Enron@EnronXGate).
-_NAME = r"[A-Z][A-Za-z'.-]*(?: [A-Z][A-Za-z'.-]*){0,3}"
+_NAME = r"[A-Z][A-Za-z'.-]*(?:(?: | \n)[A-Z][A-Za-z'.-]*){0,3}"
 _SEG = r"[A-Za-z0-9&-]{2,}"
 NOTES_RE = re.compile(
     rf"(?<![\w/])(?P<name>{_NAME})"
@@ -113,7 +118,9 @@ def detect(text: str) -> list[Match]:
         found.append(Match("email", m.group(), m.start(), m.end(), "redact", m.group().lower()))
 
     for m in NOTES_RE.finditer(text):
-        found.append(Match("notes_addr", m.group(), m.start(), m.end(), "redact", m.group("name")))
+        # Normalize "Scott \nMills" -> "Scott Mills" so placeholders stay consistent.
+        name = " ".join(m.group("name").split())
+        found.append(Match("notes_addr", m.group(), m.start(), m.end(), "redact", name))
 
     for m in PHONE_RE.finditer(text):
         found.append(Match("phone", m.group(), m.start(), m.end(), "redact",
