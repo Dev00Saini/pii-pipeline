@@ -146,8 +146,14 @@ class NameDetector:
     def _known_matches(self, text: str) -> list[Match]:
         out = []
         for run in CAP_RUN_RE.finditer(text):
-            toks = [(m.group(), run.start() + m.start(), run.start() + m.end())
-                    for m in re.finditer(r"\S+", run.group())]
+            toks = []
+            for m in re.finditer(r"\S+", run.group()):
+                tok, s, e = m.group(), run.start() + m.start(), run.start() + m.end()
+                # Leak-check round 3: possessives. "John Smith's" matches
+                # "John Smith", and the "'s" stays in the text.
+                if tok[-2:] in ("'s", "\u2019s"):
+                    tok, e = tok[:-2], e - 2
+                toks.append((tok, s, e))
             i = 0
             while i < len(toks):
                 hit = None

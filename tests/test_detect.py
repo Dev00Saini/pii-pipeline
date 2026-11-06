@@ -53,6 +53,8 @@ def test_notes_round2_more_orgs_and_double_domain(text, name):
     ("Phone:  44.207.783.4040, mobile", "44.207.783.4040"),
     ("Tel.713-524-9144 again", "713-524-9144"),         # dot after a word is fine
     ("call 1.713.853.1234", "1.713.853.1234"),          # US country code with dots
+    ("713-524-9144Fax.7135551234", "713-524-9144"),     # word glued after (round 3)
+    ("> 505-798-6050h", "505-798-6050"),
 ])
 def test_phone_round2(text, expected):
     assert ("phone", expected) in types(text)

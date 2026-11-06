@@ -72,7 +72,9 @@ g -rHoP '(?<![\d-])(?:\(\d{3}\) ?|\d{3}[-. ])\d{3}[-. ]\d{4}(?![\d-])' "$MSG" \
 g -rHoP "[A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]*){0,3}(?:/[A-Za-z]{2,}){1,3}@[A-Za-z]{2,}|[A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]*){0,3}(?:/[A-Z]{2,}){2,3}(?![A-Za-z/])" "$MSG" \
   | to_tsv notes_addr \
   | awk -F'\t' 'BEGIN { OFS = "\t" } { if ($3 !~ /@/ && $3 !~ /[a-z]/) $1 = "notes_caps"; print }' >> "$REPORT"
-g -rHoE '^X-(Folder|Origin|FileName):.*|[A-Za-z0-9_-]+\.nsf' "$MSG" \
+# .nsf names inside a web/file path (".../auction.nsf") are shared Notes
+# databases, not a person's mailbox, so only stand-alone ones count (round 3).
+g -rHoP '^X-(Folder|Origin|FileName):.*|(?<![/\w.-])[A-Za-z0-9_-]+\.nsf' "$MSG" \
   | to_tsv mailbox >> "$REPORT"
 
 if [[ -s "$KNOWN" ]]; then

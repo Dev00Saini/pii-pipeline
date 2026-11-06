@@ -89,7 +89,8 @@ PHONE_RE = re.compile(
     r"(?:\(\d{3}\)\s?|\d{3}[\s.-])"  # area code: (713) or 713- / 713. / 713␠
     r"\d{3}[\s.-]\d{4}"
     + _EXT +
-    r"(?![\w-]|\.\d)"
+    # Round 3: a word may touch the END too ("713-853-1234Fax", "505-798-6050h").
+    r"(?![\d_-]|\.\d)"
 )
 # International: "+44 20 7783 6777" or "0044 207 78 36777" (+ or 00, then a
 # 1-3 digit country code, then 7-12 more digits in groups).

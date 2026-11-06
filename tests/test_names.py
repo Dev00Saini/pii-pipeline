@@ -91,6 +91,13 @@ def test_known_names_with_header_punctuation(text, expected):
     assert m.text == expected
 
 
+@pytest.mark.parametrize("text", ["Re: John Smith's offer", "Re: John Smith\u2019s offer"])
+def test_possessive_name_matches_and_keeps_apostrophe_s(text):
+    det = NameDetector({"John Smith"}, use_spacy=False)
+    (m,) = det.detect(text)
+    assert m.text == "John Smith" and text[m.end:m.end + 2] in ("'s", "\u2019s")
+
+
 def test_names_from_header_quotes_and_titles():
     assert names_from_header("'Scott Josey' <sjosey@enron.com>, John Brindle- VP Research") == \
         ["Scott Josey", "John Brindle"]
